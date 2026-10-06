@@ -1,0 +1,233 @@
+@import "tailwindcss";
+
+/*
+ * "Parish register": warm paper, ink, one evergreen action colour, and marigold
+ * reserved for birthdays. Status colours are muted so the page stays calm and
+ * only real problems stand out.
+ */
+:root {
+  --paper: #f6f2ea;
+  --paper-2: #efe9dd;
+  --card: #fffdf9;
+  --ink: #1d1b17;
+  --ink-2: #4a453d;
+  --ink-3: #847c6f;
+  --line: #e4ddcf;
+  --line-strong: #d3c9b5;
+
+  --primary: #1f5a46;
+  --primary-hover: #184b3a;
+  --primary-ink: #f6f2ea;
+  --primary-soft: #e2ede6;
+
+  --marigold: #d99a06;
+  --marigold-ink: #6e4c00;
+  --marigold-soft: #faefcf;
+
+  --ok: #2c6e55;
+  --ok-soft: #e2ede6;
+  --bad: #b0412b;
+  --bad-soft: #f7e3dc;
+  --warn: #a8701a;
+  --warn-soft: #f8ecd6;
+  --info: #3d5a74;
+  --info-soft: #e3e9ef;
+  --mute: #7e7667;
+  --mute-soft: #ece7dc;
+
+  --shadow-sm: 0 1px 0 rgb(29 27 23 / 0.03), 0 1px 2px rgb(29 27 23 / 0.05);
+  --shadow-md: 0 1px 2px rgb(29 27 23 / 0.04), 0 8px 24px -8px rgb(29 27 23 / 0.12);
+  --shadow-lg: 0 2px 4px rgb(29 27 23 / 0.04), 0 24px 48px -12px rgb(29 27 23 / 0.22);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --paper: #131210;
+    --paper-2: #1a1916;
+    --card: #1e1c19;
+    --ink: #f1ece2;
+    --ink-2: #c6bfb2;
+    --ink-3: #8e8679;
+    --line: #2d2a25;
+    --line-strong: #3c3830;
+    --primary: #6cbf9d;
+    --primary-hover: #82cfaf;
+    --primary-ink: #0f1a15;
+    --primary-soft: #1d2d26;
+    --marigold: #f0b429;
+    --marigold-ink: #f6d27a;
+    --marigold-soft: #2e2512;
+    --ok: #6cbf9d;
+    --ok-soft: #1d2d26;
+    --bad: #e7826b;
+    --bad-soft: #35201b;
+    --warn: #e2ad57;
+    --warn-soft: #33281a;
+    --info: #8fb0cc;
+    --info-soft: #1e2731;
+    --mute: #a59d90;
+    --mute-soft: #26241f;
+    --shadow-sm: 0 1px 0 rgb(0 0 0 / 0.2);
+    --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 24px 48px -12px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root.dark {
+  --paper: #131210;
+  --paper-2: #1a1916;
+  --card: #1e1c19;
+  --ink: #f1ece2;
+  --ink-2: #c6bfb2;
+  --ink-3: #8e8679;
+  --line: #2d2a25;
+  --line-strong: #3c3830;
+  --primary: #6cbf9d;
+  --primary-hover: #82cfaf;
+  --primary-ink: #0f1a15;
+  --primary-soft: #1d2d26;
+  --marigold: #f0b429;
+  --marigold-ink: #f6d27a;
+  --marigold-soft: #2e2512;
+  --ok: #6cbf9d;
+  --ok-soft: #1d2d26;
+  --bad: #e7826b;
+  --bad-soft: #35201b;
+  --warn: #e2ad57;
+  --warn-soft: #33281a;
+  --info: #8fb0cc;
+  --info-soft: #1e2731;
+  --mute: #a59d90;
+  --mute-soft: #26241f;
+  --shadow-sm: 0 1px 0 rgb(0 0 0 / 0.2);
+  --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 24px 48px -12px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-marigold: var(--marigold);
+  --color-marigold-ink: var(--marigold-ink);
+  --color-marigold-soft: var(--marigold-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-mute: var(--mute);
+  --color-mute-soft: var(--mute-soft);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --animate-rise: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-fade: fade 0.3s ease-out both;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.98); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes sheet-in {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: var(--marigold-soft);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+}
+
+@layer components {
+  /* Display serif with optical sizing for headings and big numbers. */
+  .font-display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-variation-settings: "SOFT" 50, "WONK" 0;
+    letter-spacing: -0.015em;
+  }
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Subtle paper grain on large surfaces. */
+  .grain {
+    background-image: radial-gradient(rgb(29 27 23 / 0.035) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, var(--paper-2) 25%, var(--line) 50%, var(--paper-2) 75%);
+    background-size: 200% 100%;
+    animation: var(--animate-shimmer);
+    border-radius: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,30 @@
+services:
+  backend:
+    build: .
+    image: church-birthday-backend:latest
+    restart: unless-stopped
+    # Values come from ./.env. Quote the bcrypt hash in single quotes there:
+    # ADMIN_PASSWORD_HASH='$2b$12$...'  (otherwise "$" gets interpolated)
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+    # Bound to localhost: put a TLS-terminating reverse proxy (Caddy, nginx,
+    # Cloudflare Tunnel...) in front and set TRUST_PROXY=1 in .env.
+    ports:
+      - "127.0.0.1:4000:4000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

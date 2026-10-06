@@ -1,0 +1,733 @@
+openapi: 3.1.0
+info:
+  title: Church Birthday Dashboard API
+  version: 1.0.0
+  description: |
+    Secure gateway between the admin dashboard and the n8n workflow.
+    n8n responses are passed through unchanged (status + body). Gateway-generated
+    errors use the `GatewayError` shape. Every response has an `X-Request-Id` header.
+servers:
+  - url: http://localhost:4000
+security:
+  - session: []
+
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: cbd_session
+      description: httpOnly JWT cookie set by /auth/login (`__Host-cbd_session` in production).
+    callbackKey:
+      type: apiKey
+      in: header
+      name: X-Callback-Key
+
+  headers:
+    X-Request-Id:
+      schema: { type: string, format: uuid }
+    X-Execution-Id:
+      description: n8n execution id, when n8n returned one.
+      schema: { type: string }
+
+  parameters:
+    MemberId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    Date:
+      name: date
+      in: query
+      schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$', example: '2026-10-03' }
+
+  responses:
+    Error:
+      description: Gateway or n8n error
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/X-Request-Id' }
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/GatewayError'
+              - $ref: '#/components/schemas/N8nEnvelope'
+
+  schemas:
+    GatewayError:
+      type: object
+      required: [success, error]
+      properties:
+        success: { const: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - INVALID_BODY
+                - UNAUTHENTICATED
+                - INVALID_CREDENTIALS
+                - FORBIDDEN_ORIGIN
+                - NOT_FOUND
+                - SEND_IN_PROGRESS
+                - PAYLOAD_TOO_LARGE
+                - RATE_LIMITED
+                - TOO_MANY_STREAMS
+                - INTERNAL_ERROR
+                - GATEWAY_MISCONFIGURED
+                - N8N_UNAVAILABLE
+                - N8N_BAD_RESPONSE
+                - SEND_STATUS_UNKNOWN
+            message: { type: string }
+            details:
+              type: array
+              items:
+                oneOf:
+                  - type: string
+                  - type: object
+                    properties:
+                      path: { type: string }
+                      row: { type: integer }
+                      message: { type: string }
+        request_id: { type: string }
+
+    N8nError:
+      type: object
+      properties:
+        code: { type: string, examples: [VALIDATION_ERROR, UNKNOWN_ACTION, MEMBER_NOT_FOUND, DEPENDENCY_UNAVAILABLE] }
+        message: { type: string }
+        details: { type: array, items: {} }
+
+    N8nEnvelope:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
+        action: { type: string }
+        status: { type: string }
+        data: {}
+        error: { $ref: '#/components/schemas/N8nError' }
+        request_id: { type: string }
+        execution_id: { type: string }
+
+    YesNo: { type: string, enum: ['Yes', 'No'] }
+    MemberStatus: { type: string, enum: [Active, Inactive] }
+    MessageStatus: { type: string, enum: [SENT, FAILED, UNKNOWN, SKIPPED, INVALID, REVIEW, DEFERRED, PENDING] }
+
+    Member:
+      type: object
+      properties:
+        member_id: { type: string }
+        full_name: { type: string }
+        mobile_number: { type: string }
+        normalized_mobile: { type: string }
+        date_of_birth: { type: string }
+        whatsapp_enabled: { type: string }
+        status: { type: string }
+        remarks: { type: string }
+        created_at: { type: string }
+        updated_at: { type: string }
+        last_birthday_sent: { type: string }
+        last_message_status: { type: string }
+        last_error: { type: string }
+        data_issues: { type: array, items: { type: string } }
+        eligible_for_whatsapp: { type: boolean }
+
+    MemberInput:
+      type: object
+      additionalProperties: false
+      required: [member_id]
+      properties:
+        member_id: { type: string, minLength: 1, maxLength: 64 }
+        full_name: { type: string, maxLength: 200 }
+        mobile_number: { type: string, maxLength: 32 }
+        date_of_birth: { type: string, maxLength: 32, description: yyyy-MM-dd }
+        whatsapp_enabled: { $ref: '#/components/schemas/YesNo' }
+        status: { $ref: '#/components/schemas/MemberStatus' }
+        remarks: { type: string, maxLength: 1000 }
+
+    MemberPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Any MemberInput fields except member_id (which may be present only if equal to the path id).
+      properties:
+        member_id: { type: string }
+        full_name: { type: string, maxLength: 200 }
+        mobile_number: { type: string, maxLength: 32 }
+        date_of_birth: { type: string, maxLength: 32 }
+        whatsapp_enabled: { $ref: '#/components/schemas/YesNo' }
+        status: { $ref: '#/components/schemas/MemberStatus' }
+        remarks: { type: string, maxLength: 1000 }
+
+    RecordsBody:
+      type: object
+      additionalProperties: false
+      required: [records]
+      properties:
+        records:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { $ref: '#/components/schemas/MemberInput' }
+
+    CsvUpload:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: .csv, ≤ 2 MB, ≤ 500 data rows. Header Member_ID required.
+
+    RowResult:
+      type: object
+      properties:
+        row: { type: integer }
+        member_id: { type: string }
+        operation: { type: string, enum: [ADD, UPDATE] }
+        validation_status: { type: string, enum: [VALID, INVALID, UNCHANGED] }
+        errors: { type: array, items: { type: string } }
+        warnings: { type: array, items: { type: string } }
+
+    Decision:
+      type: object
+      properties:
+        member_id: { type: string }
+        full_name: { type: string }
+        mobile_number: { type: string }
+        date_of_birth: { type: string }
+        decision: { type: string, enum: [SEND, SKIPPED, INVALID, REVIEW, DEFERRED, NOT_FOUND] }
+        reason: { type: string }
+        attempt: { type: integer }
+        message_preview: { type: string }
+
+    LogRow:
+      type: object
+      properties:
+        log_id: { type: string }
+        member_id: { type: string }
+        member_name: { type: string }
+        mobile_number: { type: string }
+        birthday_date: { type: string }
+        attempt: { type: integer }
+        status: { $ref: '#/components/schemas/MessageStatus' }
+        reason: { type: string }
+        wa_message_id: { type: string }
+        http_status: { type: [integer, string] }
+        error_code: { type: string }
+        error: { type: string }
+        trigger_source: { type: string }
+        requested_by: { type: string }
+        claimed_at: { type: string }
+        completed_at: { type: string }
+        execution_id: { type: string }
+
+    Run:
+      type: object
+      properties:
+        run_id: { type: string }
+        execution_id: { type: string }
+        request_id: { type: string }
+        trigger_source: { type: string }
+        requested_by: { type: string }
+        target_date: { type: string }
+        started_at: { type: string }
+        finished_at: { type: string }
+        birthdays: { type: integer }
+        attempted: { type: integer }
+        sent: { type: integer }
+        failed: { type: integer }
+        unknown: { type: integer }
+        skipped: { type: integer }
+        invalid: { type: integer }
+        needs_review: { type: integer }
+        deferred: { type: integer }
+        data_issues: { type: integer }
+        result: { type: string, enum: [COMPLETED, COMPLETED_WITH_FAILURES, COMPLETED_NEEDS_ATTENTION, NO_BIRTHDAYS] }
+
+    Pagination:
+      type: object
+      properties:
+        page: { type: integer }
+        page_size: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+
+    ListMembersResponse:
+      allOf:
+        - $ref: '#/components/schemas/N8nEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                members: { type: array, items: { $ref: '#/components/schemas/Member' } }
+                pagination: { $ref: '#/components/schemas/Pagination' }
+                totals:
+                  type: object
+                  properties:
+                    all_members: { type: integer }
+                    with_data_issues: { type: integer }
+
+    GetMemberResponse:
+      allOf:
+        - $ref: '#/components/schemas/N8nEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                member: { $ref: '#/components/schemas/Member' }
+
+    MemberBatchResponse:
+      allOf:
+        - $ref: '#/components/schemas/N8nEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                committed: { type: boolean }
+                summary: { type: object, additionalProperties: { type: integer } }
+                rows: { type: array, items: { $ref: '#/components/schemas/RowResult' } }
+
+    PreviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/N8nEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                target_date: { type: string }
+                birthdays: { type: integer }
+                would_send: { type: integer }
+                counts: { type: object, additionalProperties: { type: integer } }
+                members: { type: array, items: { $ref: '#/components/schemas/Decision' } }
+
+    MessageLogResponse:
+      allOf:
+        - $ref: '#/components/schemas/N8nEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                date: { type: string }
+                counts: { type: object, additionalProperties: { type: integer } }
+                returned: { type: integer }
+                total: { type: integer }
+                messages: { type: array, items: { $ref: '#/components/schemas/LogRow' } }
+
+    RunHistoryResponse:
+      allOf:
+        - $ref: '#/components/schemas/N8nEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                found: { type: boolean }
+                status: { type: string, description: "'IN_PROGRESS_OR_NOT_FOUND' while a run is in progress" }
+                runs: { type: array, items: { $ref: '#/components/schemas/Run' } }
+
+    SendRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        date: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$', description: Today or up to 30 days back (IST). Default today. }
+        member_ids: { type: array, minItems: 1, maxItems: 200, items: { type: string } }
+        force_resend: { type: boolean, description: Requires member_ids. Never resends SENT. }
+
+    SendAccepted:
+      type: object
+      properties:
+        success: { const: true }
+        status: { const: ACCEPTED }
+        execution_id: { type: string }
+        request_id: { type: string }
+        data:
+          type: object
+          properties:
+            target_date: { type: string }
+            scope: { type: string }
+            member_ids: { type: array, items: { type: string } }
+            force_resend: { type: boolean }
+            requested_by: { type: string }
+
+    Dashboard:
+      type: object
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          properties:
+            totals:
+              type: [object, 'null']
+              properties:
+                all_members: { type: integer }
+                with_data_issues: { type: integer }
+            data_issues: { type: [integer, 'null'] }
+            today:
+              type: [object, 'null']
+              properties:
+                date: { type: string }
+                birthdays: { type: integer }
+                would_send: { type: integer }
+                counts: { type: object, additionalProperties: { type: integer } }
+                members: { type: array, items: { $ref: '#/components/schemas/Decision' } }
+            messages_today: { type: [object, 'null'], additionalProperties: { type: integer } }
+            last_run:
+              oneOf:
+                - $ref: '#/components/schemas/Run'
+                - type: 'null'
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              source: { type: string, enum: [members, data_issues, preview, messages, last_run] }
+              status: { type: integer }
+              code: { type: string }
+              message: { type: string }
+        request_id: { type: string }
+
+    Callback:
+      oneOf:
+        - type: object
+          required: [event, run]
+          properties:
+            event: { const: birthday_run.completed }
+            run:
+              type: object
+              required: [Run_ID]
+              additionalProperties: true
+              properties:
+                Run_ID: { type: [string, integer] }
+        - type: object
+          required: [event, execution_id]
+          properties:
+            event: { const: birthday_workflow.failed }
+            execution_id: { type: [string, integer] }
+            execution_url: { type: string }
+            failed_node: { type: string }
+            error_message: { type: string }
+            occurred_at: { type: string }
+
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      security: []
+      summary: Log in (5 failed attempts / 15 min / IP)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Logged in. Sets the httpOnly session cookie.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { const: true }
+                  data: { type: object, properties: { username: { type: string } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      security: []
+      summary: Log out (revokes the token and clears the cookie)
+      responses:
+        '204': { description: Logged out }
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Current user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { const: true }
+                  data: { type: object, properties: { username: { type: string } } }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      security: []
+      summary: Backend + n8n status (n8n probe cached 30 s)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  backend: { const: ok }
+                  n8n: { type: string, enum: [ok, error, unreachable, misconfigured] }
+
+  /health/live:
+    get:
+      operationId: getLiveness
+      tags: [health]
+      security: []
+      summary: Liveness only; never calls n8n
+      responses:
+        '200': { description: OK }
+
+  /members:
+    get:
+      operationId: listMembers
+      tags: [members]
+      summary: List members (n8n list_members)
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/MemberStatus' } }
+        - { name: whatsapp_enabled, in: query, schema: { $ref: '#/components/schemas/YesNo' } }
+        - { name: issues_only, in: query, schema: { type: boolean } }
+        - { name: birthday_month, in: query, schema: { type: integer, minimum: 1, maximum: 12 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/ListMembersResponse' } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      operationId: upsertMember
+      tags: [members]
+      summary: Create or update one member (upsert by member_id)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MemberInput' } } }
+      responses:
+        '200':
+          description: Committed
+          content: { application/json: { schema: { $ref: '#/components/schemas/MemberBatchResponse' } } }
+        '422':
+          description: Invalid (nothing written)
+          content: { application/json: { schema: { $ref: '#/components/schemas/MemberBatchResponse' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /members/{id}:
+    parameters: [{ $ref: '#/components/parameters/MemberId' }]
+    get:
+      operationId: getMember
+      tags: [members]
+      summary: Get one member (n8n get_member)
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/GetMemberResponse' } } }
+        '404': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: updateMember
+      tags: [members]
+      summary: Update fields of an existing member (404 if missing; never creates)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MemberPatch' } } }
+      responses:
+        '200':
+          description: Committed
+          content: { application/json: { schema: { $ref: '#/components/schemas/MemberBatchResponse' } } }
+        '404': { $ref: '#/components/responses/Error' }
+        '422':
+          description: Invalid
+          content: { application/json: { schema: { $ref: '#/components/schemas/MemberBatchResponse' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /members/{id}/deactivate:
+    parameters: [{ $ref: '#/components/parameters/MemberId' }]
+    post:
+      operationId: deactivateMember
+      tags: [members]
+      summary: Set status Inactive (there is no hard delete)
+      responses:
+        '200':
+          description: Committed
+          content: { application/json: { schema: { $ref: '#/components/schemas/MemberBatchResponse' } } }
+        '404': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+
+  /members/verify:
+    post:
+      operationId: verifyMembers
+      tags: [members]
+      summary: Validate records without writing (JSON or CSV upload)
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/RecordsBody' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/CsvUpload' } }
+      responses:
+        '200':
+          description: All valid
+          content: { application/json: { schema: { $ref: '#/components/schemas/MemberBatchResponse' } } }
+        '422':
+          description: Some rows invalid
+          content: { application/json: { schema: { $ref: '#/components/schemas/MemberBatchResponse' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /members/import:
+    post:
+      operationId: importMembers
+      tags: [members]
+      summary: Upsert up to 500 records (JSON or CSV upload). All-or-nothing.
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/RecordsBody' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/CsvUpload' } }
+      responses:
+        '200':
+          description: Committed
+          content: { application/json: { schema: { $ref: '#/components/schemas/MemberBatchResponse' } } }
+        '422':
+          description: Some rows invalid (nothing written)
+          content: { application/json: { schema: { $ref: '#/components/schemas/MemberBatchResponse' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /birthdays/preview:
+    get:
+      operationId: previewBirthdays
+      tags: [birthdays]
+      summary: Who would be sent/skipped and why (sends nothing)
+      parameters:
+        - $ref: '#/components/parameters/Date'
+        - { name: member_ids, in: query, description: Comma-separated, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/PreviewResponse' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /birthdays/send:
+    post:
+      operationId: sendBirthdays
+      tags: [birthdays]
+      summary: Start a send run (10/min, never auto-retried)
+      requestBody:
+        content: { application/json: { schema: { $ref: '#/components/schemas/SendRequest' } } }
+      responses:
+        '202':
+          description: Accepted; the run continues in n8n. Poll /runs/{executionId} or listen on /events.
+          headers:
+            X-Execution-Id: { $ref: '#/components/headers/X-Execution-Id' }
+          content: { application/json: { schema: { $ref: '#/components/schemas/SendAccepted' } } }
+        '409': { $ref: '#/components/responses/Error' }
+        '502':
+          description: SEND_STATUS_UNKNOWN — check /runs?date= before sending again.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GatewayError' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /runs:
+    get:
+      operationId: listRuns
+      tags: [runs]
+      summary: Run history
+      parameters:
+        - $ref: '#/components/parameters/Date'
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/RunHistoryResponse' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /runs/{executionId}:
+    get:
+      operationId: getRun
+      tags: [runs]
+      summary: One run by n8n execution id (poll until status != IN_PROGRESS_OR_NOT_FOUND)
+      parameters:
+        - { name: executionId, in: path, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{1,64}$' } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/RunHistoryResponse' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /messages:
+    get:
+      operationId: listMessages
+      tags: [messages]
+      summary: Message log
+      parameters:
+        - $ref: '#/components/parameters/Date'
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/MessageStatus' } }
+        - { name: member_id, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 1000 } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/MessageLogResponse' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Aggregate of five n8n calls; partial data + errors[] if some fail
+      responses:
+        '200':
+          description: OK (possibly partial)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Dashboard' } } }
+        default: { $ref: '#/components/responses/Error' }
+
+  /events:
+    get:
+      operationId: streamEvents
+      tags: [events]
+      summary: Server-Sent Events stream (run.completed, workflow.failed); heartbeat every 25 s
+      parameters:
+        - { name: Last-Event-ID, in: header, schema: { type: string } }
+      responses:
+        '200':
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /hooks/n8n:
+    post:
+      operationId: n8nCallback
+      tags: [hooks]
+      security:
+        - callbackKey: []
+      summary: Callback receiver for n8n (not for browsers). De-duplicated by Run_ID / execution_id.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Callback' } } }
+      responses:
+        '204': { description: Accepted }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
